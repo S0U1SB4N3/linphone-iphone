@@ -1,21 +1,21 @@
-/* ContactDetailsViewController.m
-*
-* Copyright (C) 2012  Belledonne Comunications, Grenoble, France
-*
-*  This program is free software; you can redistribute it and/or modify
-*  it under the terms of the GNU General Public License as published by
-*  the Free Software Foundation; either version 2 of the License, or
-*  (at your option) any later version.
-*
-*  This program is distributed in the hope that it will be useful,
-*  but WITHOUT ANY WARRANTY; without even the implied warranty of
-*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-*  GNU General Public License for more details.
-*
-*  You should have received a copy of the GNU General Public License
-*  along with this program; if not, write to the Free Software
-*  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-*/
+/*
+ * Copyright (c) 2010-2019 Belledonne Communications SARL.
+ *
+ * This file is part of linphone-iphone
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #import "ContactDetailsView.h"
 #import "PhoneMainView.h"
@@ -437,9 +437,13 @@ static UICompositeViewDescription *compositeDescription = nil;
                     nbSipAd++;
                   }
                 }
-                while (_contact.phones.count > 0 &&
-                       _contact.phones[0] != NULL) {
-                  [_contact removePhoneNumberAtIndex:0];
+                while (_contact.phones.count > 0) {
+					if (_contact.phones[0] != NULL && ![_contact.phones[0] isEqualToString:@" "]) {
+						[_contact removePhoneNumberAtIndex:0];
+					} else {
+						// remove empty index
+						[_contact.phones removeObjectAtIndex:0];
+					}
                 }
                 NSInteger nbPhone = 0;
                 if (_tmpContact.phones != NULL) {
@@ -499,8 +503,8 @@ static UICompositeViewDescription *compositeDescription = nil;
 - (IBAction)onEditClick:(id)event {
 	if (_tableController.isEditing) {
 		[LinphoneManager.instance setContactsUpdated:TRUE];
+		[self setEditing:FALSE];
 		if(![self hasDuplicateContactOf:_contact]){
-			[self setEditing:FALSE];
 			[self saveData];
 			_isAdding = FALSE;
 			self.tmpContact = NULL;
@@ -528,6 +532,7 @@ static UICompositeViewDescription *compositeDescription = nil;
 							[self onCancelClick:sender];
 						}
 						[self removeContact];
+						[self dismissKeyboards];
 					  }];
 }
 

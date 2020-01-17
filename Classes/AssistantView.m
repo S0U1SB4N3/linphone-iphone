@@ -1,21 +1,20 @@
-
-/* AssistantViewController.m
+/*
+ * Copyright (c) 2010-2019 Belledonne Communications SARL.
  *
- * Copyright (C) 2012  Belledonne Comunications, Grenoble, France
+ * This file is part of linphone-iphone
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #import "linphone/linphonecore_utils.h"
@@ -170,11 +169,19 @@ static UICompositeViewDescription *compositeDescription = nil;
 													 assistant_recover_phone_account);
 	linphone_account_creator_cbs_set_is_account_linked(linphone_account_creator_get_callbacks(account_creator),
 													   assistant_is_account_linked);
+	linphone_account_creator_cbs_set_login_linphone_account(linphone_account_creator_get_callbacks(account_creator), assistant_login_linphone_account);
 	
 }
 - (void)loadAssistantConfig:(NSString *)rcFilename {
 	linphone_core_load_config_from_xml(LC,
 									   [LinphoneManager bundleFile:rcFilename].UTF8String);
+	if (account_creator) {
+		// Below two settings are applied to account creator when it is built.
+		// Reloading Core config after won't change the account creator configuration,
+		// hence the manual reload
+		linphone_account_creator_set_domain(account_creator, [[LinphoneManager.instance lpConfigStringForKey:@"domain" inSection:@"assistant" withDefault:@""] UTF8String]);
+		linphone_account_creator_set_algorithm(account_creator, [[LinphoneManager.instance lpConfigStringForKey:@"algorithm" inSection:@"assistant" withDefault:@""] UTF8String]);
+	}
 	[self changeView:nextView back:FALSE animation:TRUE];
 }
 
@@ -265,9 +272,9 @@ static UICompositeViewDescription *compositeDescription = nil;
 + (NSString *)errorForLinphoneAccountCreatorPhoneNumberStatus:(LinphoneAccountCreatorPhoneNumberStatus)status {
 	switch (status) {
 		case LinphoneAccountCreatorPhoneNumberStatusTooShort: /**< Phone number too short */
-			return NSLocalizedString(@"Your country code is too short.", nil);
+			return NSLocalizedString(@"Your phone number is too short.", nil);
 		case LinphoneAccountCreatorPhoneNumberStatusTooLong: /**< Phone number too long */
-			return NSLocalizedString(@"Your country code is too long.", nil);
+			return NSLocalizedString(@"Your phone number is too long.", nil);
 			return nil; /* this is not an error, just user has to finish typing */
 		case LinphoneAccountCreatorPhoneNumberStatusInvalidCountryCode: /**< Country code invalid */
 			return NSLocalizedString(@"Your country code is invalid.", nil);
@@ -1132,6 +1139,18 @@ void assistant_activate_account(LinphoneAccountCreator *creator, LinphoneAccount
 	}
 }
 
+void assistant_login_linphone_account(LinphoneAccountCreator *creator, LinphoneAccountCreatorStatus status,
+								const char *resp) {
+	AssistantView *thiz = (__bridge AssistantView *)(linphone_account_creator_get_user_data(creator));
+	thiz.waitView.hidden = YES;
+	if (status == LinphoneAccountCreatorStatusRequestOk) {
+		[thiz configureProxyConfig];
+		[[NSNotificationCenter defaultCenter] postNotificationName:kLinphoneAddressBookUpdate object:NULL];
+	} else {
+		[thiz showErrorPopup:resp];
+	}
+}
+
 void assistant_is_account_activated(LinphoneAccountCreator *creator, LinphoneAccountCreatorStatus status,
 									const char *resp) {
 	AssistantView *thiz = (__bridge AssistantView *)(linphone_account_creator_get_user_data(creator));
@@ -1286,8 +1305,12 @@ void assistant_is_account_linked(LinphoneAccountCreator *creator, LinphoneAccoun
 			((UITextField *)[self findView:ViewElement_SMSCode inView:_contentView ofType:UITextField.class])
 				.text.UTF8String);
 		if (linphone_account_creator_get_password(account_creator) == NULL &&
-				linphone_account_creator_get_ha1(account_creator) == NULL) {
+			linphone_account_creator_get_ha1(account_creator) == NULL) {
+			if ([_activationTitle.text isEqualToString:@"USE LINPHONE ACCOUNT"]) {
+				linphone_account_creator_login_linphone_account(account_creator);
+			} else {
 				linphone_account_creator_activate_account(account_creator);
+			}
 		} else {
 			NSString * language = [[NSLocale preferredLanguages] objectAtIndex:0];
 			linphone_account_creator_set_language(account_creator, [[language substringToIndex:2] UTF8String]);
@@ -1418,7 +1441,22 @@ void assistant_is_account_linked(LinphoneAccountCreator *creator, LinphoneAccoun
 - (IBAction)onRemoteProvisioningDownloadClick:(id)sender {
 	ONCLICKBUTTON(sender, 100, {
         [_waitView setHidden:false];
-		[self resetLiblinphone:TRUE];
+		if (number_of_configs_before > 0) {
+			// TODO remove ME when it is fixed in SDK.
+			linphone_core_set_provisioning_uri(LC, NULL);
+			UIAlertController *errView = [UIAlertController alertControllerWithTitle:NSLocalizedString(@"Provisioning Load error", nil)
+																			 message:NSLocalizedString(@"Please remove other accounts before remote provisioning.", nil)
+																	  preferredStyle:UIAlertControllerStyleAlert];
+				
+			UIAlertAction* defaultAction = [UIAlertAction actionWithTitle:@"OK"
+																	style:UIAlertActionStyleDefault
+																  handler:^(UIAlertAction * action) {}];
+			
+			[errView addAction:defaultAction];
+			[self presentViewController:errView animated:YES completion:nil];
+		} else {
+			[self resetLiblinphone:TRUE];
+		}
     });
 }
 

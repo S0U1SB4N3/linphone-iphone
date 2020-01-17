@@ -1,20 +1,20 @@
-/* LinphoneManager.h
+/*
+ * Copyright (c) 2010-2019 Belledonne Communications SARL.
  *
- * Copyright (C) 2011  Belledonne Comunications, Grenoble, France
+ * This file is part of linphone-iphone
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <sys/types.h>
@@ -1153,8 +1153,7 @@ static void linphone_iphone_popup_password_request(LinphoneCore *lc, LinphoneAut
 		return;
     
 	if (hasFile) {
-		ChatConversationView *view = VIEW(ChatConversationView);
-		[view autoDownload:msg view:nil];
+		[ChatConversationView autoDownload:msg];
 	}
 
 	// Post event
@@ -1490,59 +1489,6 @@ void linphone_iphone_qr_code_found(LinphoneCore *lc, const char *result) {
 }
 
 #pragma mark - Message composition start
-- (void)alertLIME:(LinphoneChatRoom *)room {
-	NSString *title = NSLocalizedString(@"LIME warning", nil);
-	NSString *body =
-		NSLocalizedString(@"You are trying to send a message using LIME to a contact not verified by ZRTP.\n"
-				  @"Please call this contact and verify his ZRTP key before sending your messages.",
-				  nil);
-
-	if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive) {
-		UIAlertController *errView =
-			[UIAlertController alertControllerWithTitle:title message:body preferredStyle:UIAlertControllerStyleAlert];
-
-		UIAlertAction *defaultAction = [UIAlertAction actionWithTitle:@"OK"
-						style:UIAlertActionStyleDefault
-						handler:^(UIAlertAction *action){}];
-		[errView addAction:defaultAction];
-
-		UIAlertAction *callAction = [UIAlertAction actionWithTitle:NSLocalizedString(@"Call", nil)
-					     style:UIAlertActionStyleDefault
-					     handler:^(UIAlertAction *action) {
-				[self call:linphone_chat_room_get_peer_address(room)];
-			}];
-		[errView addAction:callAction];
-		[PhoneMainView.instance presentViewController:errView animated:YES completion:nil];
-	} else {
-		if (floor(NSFoundationVersionNumber) > NSFoundationVersionNumber_iOS_9_x_Max) {
-			UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-			content.title = title;
-			content.body = body;
-			content.categoryIdentifier = @"lime";
-
-			UNNotificationRequest *req = [UNNotificationRequest
-						      requestWithIdentifier:@"lime_request"
-						      content:content
-						      trigger:[UNTimeIntervalNotificationTrigger triggerWithTimeInterval:1 repeats:NO]];
-			[[UNUserNotificationCenter currentNotificationCenter]
-			 addNotificationRequest:req
-			 withCompletionHandler:^(NSError *_Nullable error) {
-					// Enable or disable features based on authorization.
-					if (error) {
-						LOGD(@"Error while adding notification request :");
-						LOGD(error.description);
-					}
-				}];
-		} else {
-			UILocalNotification *notification = [[UILocalNotification alloc] init];
-			notification.repeatInterval = 0;
-			notification.alertTitle = title;
-			notification.alertBody = body;
-			[[UIApplication sharedApplication] presentLocalNotificationNow:notification];
-		}
-	}
-}
-
 - (void)onMessageComposeReceived:(LinphoneCore *)core forRoom:(LinphoneChatRoom *)room {
 	[NSNotificationCenter.defaultCenter postNotificationName:kLinphoneTextComposeEvent
 	 object:self
@@ -2438,10 +2384,7 @@ static int comp_call_state_paused(const LinphoneCall *call, const void *param) {
 
 - (void)send:(NSString *)replyText toChatRoom:(LinphoneChatRoom *)room {
 	LinphoneChatMessage *msg = linphone_chat_room_create_message(room, replyText.UTF8String);
-	linphone_chat_room_send_chat_message(room, msg);
-
-	if (linphone_core_lime_enabled(LC) == LinphoneLimeMandatory && !linphone_chat_room_lime_available(room))
-		[LinphoneManager.instance alertLIME:room];
+	linphone_chat_message_send(msg);
 
 	[ChatConversationView markAsRead:room];
 }

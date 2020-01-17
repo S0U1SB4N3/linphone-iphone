@@ -1,9 +1,21 @@
-//
-//  DevicesListView.m
-//  linphone
-//
-//  Created by Danmei Chen on 06/11/2018.
-//
+/*
+ * Copyright (c) 2010-2019 Belledonne Communications SARL.
+ *
+ * This file is part of linphone-iphone
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #import "DevicesListView.h"
 #import "PhoneMainView.h"
@@ -74,8 +86,9 @@ static UICompositeViewDescription *compositeDescription = nil;
     }
 	
 	LinphoneParticipant *me = linphone_chat_room_get_me(_room);
-	[_devicesMenuEntries
-	 addObject:[[DevicesMenuEntry alloc] initWithTitle:me number:0 isMe:TRUE]];
+	// not show me if there is only one device
+	if (bctbx_list_size(linphone_participant_get_devices(me)) > 1)
+		[_devicesMenuEntries addObject:[[DevicesMenuEntry alloc] initWithTitle:me number:0 isMe:TRUE]];
 
     _tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     [_tableView reloadData];
@@ -101,7 +114,9 @@ static UICompositeViewDescription *compositeDescription = nil;
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(nonnull NSIndexPath *)indexPath
 {
     DevicesMenuEntry *entry = [_devicesMenuEntries objectAtIndex:indexPath.row];
-    return entry->numberOfDevices > 1 ? (entry->numberOfDevices + 1) * 56.0 : 56.0;
+	if (entry->myself)
+		return (entry->numberOfDevices + 1) * 56.0;
+	return entry->numberOfDevices > 1 ? (entry->numberOfDevices + 1) * 56.0 : 56.0;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
@@ -117,14 +132,20 @@ static UICompositeViewDescription *compositeDescription = nil;
         
 	entry->myself ? cell.addressLabel.text = NSLocalizedString(@"Me", nil) : [ContactDisplay setDisplayNameLabel:cell.addressLabel forAddress:linphone_participant_get_address(entry->participant)];
     cell.participant = entry->participant;
-    [cell update:(entry->numberOfDevices != 0)];
+    [cell update:(entry->numberOfDevices != 0) isMyself:entry->myself];
 
     return cell;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
 	DevicesMenuEntry *entry = [_devicesMenuEntries objectAtIndex:indexPath.row];
-	NSInteger num = (entry->numberOfDevices != 0) ? 0: bctbx_list_size(linphone_participant_get_devices(entry->participant));
+	NSInteger num = 0;
+	if (entry->numberOfDevices == 0) {
+		num =  bctbx_list_size(linphone_participant_get_devices(entry->participant));
+		// not show current device
+		if (entry->myself)
+		num -= 1;
+	}
 	[_devicesMenuEntries replaceObjectAtIndex:indexPath.row withObject:[[DevicesMenuEntry alloc] initWithTitle:entry->participant number:num isMe:entry->myself]];
 	[_tableView reloadData];
 }

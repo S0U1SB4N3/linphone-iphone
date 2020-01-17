@@ -1,9 +1,21 @@
-//
-//  UIRecordingCell.m
-//  linphone
-//
-//  Created by benjamin_verdier on 25/07/2018.
-//
+/*
+ * Copyright (c) 2010-2019 Belledonne Communications SARL.
+ *
+ * This file is part of linphone-iphone
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #import "UIRecordingCell.h"
 #import "PhoneMainView.h"
@@ -115,9 +127,6 @@ static UILinphoneAudioPlayer *player;
     [activityVC setCompletionWithItemsHandler:^(UIActivityType __nullable activityType, BOOL completed, NSArray * __nullable returnedItems, NSError * __nullable activityError) {
         //This is used to select the same row when we get back to the recordings view.
         NSString *file = player.file;
-        //This reloads the view, if don't it's empty for some reason. Idealy we'd want to do this before closing the view but it's functionnal.
-        [PhoneMainView.instance popCurrentView];
-        [PhoneMainView.instance changeCurrentView:RecordingsListView.compositeViewDescription];
         [[(RecordingsListView *)VIEW(RecordingsListView) tableController] setSelected:file];
     }];
     [PhoneMainView.instance presentViewController:activityVC animated:YES completion:nil];

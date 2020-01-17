@@ -1,20 +1,20 @@
-/* ContactsViewController.m
+/*
+ * Copyright (c) 2010-2019 Belledonne Communications SARL.
  *
- * Copyright (C) 2012  Belledonne Comunications, Grenoble, France
+ * This file is part of linphone-iphone
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #import "PhoneMainView.h"
@@ -26,6 +26,7 @@ static NSString *sAddAddress = nil;
 static NSString *sSipFilter = nil;
 static BOOL sEnableEmailFilter = FALSE;
 static NSString *sNameOrEmailFilter;
+static BOOL addAddressFromOthers = FALSE;
 
 + (void)setSelectionMode:(ContactSelectionMode)selectionMode {
 	sSelectionMode = selectionMode;
@@ -37,6 +38,7 @@ static NSString *sNameOrEmailFilter;
 
 + (void)setAddAddress:(NSString *)address {
 	sAddAddress = address;
+	addAddressFromOthers = true;
 }
 
 + (NSString *)getAddAddress {
@@ -122,6 +124,16 @@ static UICompositeViewDescription *compositeDescription = nil;
 	[ContactSelection setNameOrEmailFilter:@""];
 	_searchBar.showsCancelButton = (_searchBar.text.length > 0);
 
+	int y = _searchBar.frame.origin.y + _searchBar.frame.size.height;
+	[tableController.tableView setFrame:CGRectMake(tableController.tableView.frame.origin.x,
+												   y,
+												   tableController.tableView.frame.size.width,
+												   tableController.tableView.frame.size.height)];
+	[tableController.emptyView setFrame:CGRectMake(tableController.emptyView.frame.origin.x,
+												   y,
+												   tableController.emptyView.frame.size.width,
+												   tableController.emptyView.frame.size.height)];
+
 	if (tableController.isEditing) {
 		tableController.editing = NO;
 	}
@@ -144,6 +156,23 @@ static UICompositeViewDescription *compositeDescription = nil;
 		[errView addAction:defaultAction];
 		[self presentViewController:errView animated:YES completion:nil];
 		[PhoneMainView.instance popCurrentView];
+	}
+	
+	// show message toast when add contact from address
+	if ([ContactSelection getAddAddress] != nil && addAddressFromOthers) {
+		UIAlertController *infoView = [UIAlertController
+									   alertControllerWithTitle:NSLocalizedString(@"Info", nil)
+									   message:NSLocalizedString(@"Select a contact or create a new one.",nil)
+									   preferredStyle:UIAlertControllerStyleAlert];
+		
+		UIAlertAction *defaultAction = [UIAlertAction actionWithTitle:@"OK"
+																style:UIAlertActionStyleDefault
+															  handler:^(UIAlertAction *action){
+															  }];
+		
+		[infoView addAction:defaultAction];
+		addAddressFromOthers = FALSE;
+		[PhoneMainView.instance presentViewController:infoView animated:YES completion:nil];
 	}
 }
 

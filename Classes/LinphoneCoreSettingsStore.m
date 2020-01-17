@@ -1,20 +1,20 @@
-/* LinphoneCoreSettingsStore.m
+/*
+ * Copyright (c) 2010-2019 Belledonne Communications SARL.
  *
- * Copyright (C) 2012  Belledonne Comunications, Grenoble, France
+ * This file is part of linphone-iphone
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #import "LinphoneCoreSettingsStore.h"
@@ -181,9 +181,9 @@
 				[self setBool:pushEnabled forKey:@"account_pushnotification_preference"];
 			}
 			const LinphoneAddress *identity_addr = linphone_proxy_config_get_identity_address(proxy);
-			if (identity_addr) {
-				const char *server_addr = linphone_proxy_config_get_server_addr(proxy);
-				LinphoneAddress *proxy_addr = linphone_core_interpret_url(LC, server_addr);
+			const char *server_addr = linphone_proxy_config_get_server_addr(proxy);
+			LinphoneAddress *proxy_addr = linphone_core_interpret_url(LC, server_addr);
+			if (identity_addr && proxy_addr) {
 				int port = linphone_address_get_port(proxy_addr);
 
 				[self setCString:linphone_address_get_username(identity_addr)
@@ -212,7 +212,7 @@
 					default:
 						break;
 				}
-				linphone_address_destroy(proxy_addr);
+				linphone_address_unref(proxy_addr);
 				[self setCString:tname forKey:@"account_transport_preference"];
 			}
 
@@ -337,7 +337,6 @@
 
 	// chat section
 	{
-		[self setInteger:linphone_core_lime_enabled(LC) forKey:@"use_lime_preference"];
 		[self setCString:linphone_core_get_file_transfer_server(LC) forKey:@"file_transfer_server_url_preference"];
         int maxSize = linphone_core_get_max_size_for_auto_download_incoming_files(LC);
         [self setObject:maxSize==0 ? @"Always" : (maxSize==-1 ? @"Nerver" : @"Customize") forKey:@"auto_download_mode"];
@@ -430,7 +429,7 @@
 		if (parsed != NULL) {
 			[self setCString:linphone_address_get_display_name(parsed) forKey:@"primary_displayname_preference"];
 			[self setCString:linphone_address_get_username(parsed) forKey:@"primary_username_preference"];
-			linphone_address_destroy(parsed);
+			linphone_address_unref(parsed);
 		}
 	}
 
@@ -630,7 +629,7 @@
 											  linphone_proxy_config_get_domain(proxyCfg));
 			}
 
-			linphone_address_destroy(from);
+			linphone_address_unref(from);
 			linphone_core_add_auth_info(LC, info);
 			linphone_auth_info_destroy(info);
 			ms_free(realm);
@@ -769,24 +768,6 @@
 		[lm lpConfigSetBool:[self boolForKey:@"pref_accept_early_media_preference"] forKey:@"pref_accept_early_media"];
 		linphone_core_set_media_encryption_mandatory(LC, [self boolForKey:@"media_encrption_mandatory_preference"]);
 
-		// chat section
-		int val = [self integerForKey:@"use_lime_preference"];
-		linphone_core_enable_lime(LC, val);
-		if (val == LinphoneLimeMandatory && (linphone_core_get_media_encryption(LC) != LinphoneMediaEncryptionZRTP)) {
-			linphone_core_set_media_encryption(LC, LinphoneMediaEncryptionZRTP);
-			[self setCString:"ZRTP" forKey:@"media_encryption_preference"];
-			UIAlertController *errView = [UIAlertController alertControllerWithTitle:NSLocalizedString(@"ZRTP activation", nil)
-																			 message:NSLocalizedString(@"LIME requires ZRTP encryption.\n"
-																									   @"By activating LIME you automatically activate ZRTP media encryption.",
-																									   nil)
-																	  preferredStyle:UIAlertControllerStyleAlert];
-
-			UIAlertAction *defaultAction = [UIAlertAction actionWithTitle:@"OK"
-																	style:UIAlertActionStyleDefault
-																  handler:^(UIAlertAction *action){}];
-			[errView addAction:defaultAction];
-			[PhoneMainView.instance presentViewController:errView animated:YES completion:nil];
-		}
 		linphone_core_set_file_transfer_server(LC, [self stringForKey:@"file_transfer_server_url_preference"].UTF8String);
         int maxSize;
         NSString *downloadMode = [self stringForKey:@"auto_download_mode"];

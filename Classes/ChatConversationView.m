@@ -1,20 +1,20 @@
-/* ChatRoomViewController.m
+/*
+ * Copyright (c) 2010-2019 Belledonne Communications SARL.
  *
- * Copyright (C) 2012  Belledonne Comunications, Grenoble, France
+ * This file is part of linphone-iphone
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #import <Photos/PHAssetChangeRequest.h>
@@ -378,11 +378,7 @@ static UICompositeViewDescription *compositeDescription = nil;
 	}
 
 	// we must ref & unref message because in case of error, it will be destroy otherwise
-	linphone_chat_room_send_chat_message(_chatRoom, msg);
-
-	if (linphone_core_lime_enabled(LC) == LinphoneLimeMandatory && !linphone_chat_room_lime_available(_chatRoom)) {
-		[LinphoneManager.instance alertLIME:_chatRoom];
-	}
+	linphone_chat_message_send(msg);
 
 	return TRUE;
 }
@@ -423,25 +419,22 @@ static UICompositeViewDescription *compositeDescription = nil;
 }
 
 - (void)confirmShare:(NSData *)data url:(NSString *)url fileName:(NSString *)fileName assetId:(NSString *)phAssetId {
-    DTActionSheet *sheet = [[DTActionSheet alloc] initWithTitle:NSLocalizedString(@"", nil)];
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            [sheet addButtonWithTitle:@"send to this friend"
-                                block:^() {
-                                    if (![[self.messageField text] isEqualToString:@""]) {
-                                        [self sendMessageInMessageField];
-                                    }
-                                    if (url)
-                                        [self sendMessage:url withExterlBodyUrl:nil withInternalURL:nil];
-                                    else if (fileName)
-                                        [self startFileUpload:data withName:fileName];
-                                    else
-                                        [self startFileUpload:data assetId:phAssetId];
-                                }];
+    DTActionSheet *sheet = [[DTActionSheet alloc] initWithTitle:@""];
+    dispatch_async(dispatch_get_main_queue(), ^{
+		[sheet addButtonWithTitle:NSLocalizedString(@"Send to this friend", nil)
+							block:^() {
+								if (![[self.messageField text] isEqualToString:@""]) {
+									[self sendMessageInMessageField];
+								}
+								if (url)
+									[self sendMessage:url withExterlBodyUrl:nil withInternalURL:nil];
+								else if (fileName)
+									[self startFileUpload:data withName:fileName];
+								else
+									[self startFileUpload:data assetId:phAssetId];}];
      
         [sheet addCancelButtonWithTitle:NSLocalizedString(@"Cancel", nil) block:nil];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [sheet showInView:PhoneMainView.instance.view];
-        });
+		[sheet showInView:PhoneMainView.instance.view];
     });
 }
 
@@ -491,10 +484,8 @@ static UICompositeViewDescription *compositeDescription = nil;
 
 - (void)updateSuperposedButtons {
 	[_backToCallButton update];
-	LinphoneChatRoomCapabilitiesMask capabilities = linphone_chat_room_get_capabilities(_chatRoom);
-	_infoButton.hidden = ((capabilities & LinphoneChatRoomCapabilitiesOneToOne)
-						|| !_backToCallButton.hidden
-						|| _tableController.tableView.isEditing);
+	BOOL isOneToOneChat = _chatRoom && (linphone_chat_room_get_capabilities(_chatRoom) & LinphoneChatRoomCapabilitiesOneToOne);
+	_infoButton.hidden = (isOneToOneChat|| !_backToCallButton.hidden || _tableController.tableView.isEditing);
 	_callButton.hidden = !_backToCallButton.hidden || !_infoButton.hidden || _tableController.tableView.isEditing;
 }
 
@@ -1020,6 +1011,9 @@ void on_chat_room_subject_changed(LinphoneChatRoom *cr, const LinphoneEventLog *
 		view.addressLabel.text = [NSString stringWithUTF8String:subject];
 		[view.tableController addEventEntry:(LinphoneEventLog *)event_log];
 		[view.tableController scrollToBottom:true];
+		if (IPAD) {
+			[VIEW(ChatsListView).tableController loadData];
+		}
 	}
 }
 
@@ -1065,7 +1059,6 @@ void on_chat_room_chat_message_received(LinphoneChatRoom *cr, const LinphoneEven
 		return;
   
     if (hasFile) {
-        [view autoDownload:chat view:view];
         [view.tableController addEventEntry:(LinphoneEventLog *)event_log];
         return;
     }
@@ -1175,13 +1168,14 @@ void on_chat_room_conference_alert(LinphoneChatRoom *cr, const LinphoneEventLog 
         [[[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Info", nil) message:NSLocalizedString(@"ICloud Drive is unavailable.", nil) delegate:nil cancelButtonTitle:NSLocalizedString(@"Cancel", nil) otherButtonTitles:nil, nil] show];
         return FALSE;
     }
-    
-    if ([fileManager fileExistsAtPath:[fileURL path]]) {
-        // if it exists, replace the file
+
+	NSString *fileName = fileURL.lastPathComponent;
+    if ([fileManager fileExistsAtPath:[fileURL path]] || [fileName hasPrefix:@"recording"]) {
+        // if it exists, replace the file. If it's a record file, copy the file
         return [data writeToURL:fileURL atomically:TRUE];
     } else {
         // get the url of localfile
-        NSString *filePath = [[LinphoneManager cacheDirectory] stringByAppendingPathComponent:fileURL.lastPathComponent];
+        NSString *filePath = [[LinphoneManager cacheDirectory] stringByAppendingPathComponent:fileName];
         NSURL *localURL = nil;
         if ([fileManager createFileAtPath:filePath contents:data attributes:nil]) {
             localURL = [NSURL fileURLWithPath:filePath];
@@ -1291,7 +1285,8 @@ void on_chat_room_conference_alert(LinphoneChatRoom *cr, const LinphoneEventLog 
 	[PhoneMainView.instance presentViewController:errView animated:YES completion:nil];
 }
 
-- (void)autoDownload:(LinphoneChatMessage *)message view:(ChatConversationView *)view {
++ (void)autoDownload:(LinphoneChatMessage *)message {
+	ChatConversationView *view = VIEW(ChatConversationView);
     //TODO: migrate with  "linphone_iphone_file_transfer_recv"
     LinphoneContent *content = linphone_chat_message_get_file_transfer_information(message);
     NSString *name = [NSString stringWithUTF8String:linphone_content_get_name(content)];
@@ -1308,7 +1303,7 @@ void on_chat_room_conference_alert(LinphoneChatRoom *cr, const LinphoneEventLog 
 				// we're finished, save the image and update the message
 				UIImage *image = [UIImage imageWithData:data];
 				if (!image) {
-					[self showFileDownloadError];
+					[view showFileDownloadError];
 					return;
 				}
 				__block PHObjectPlaceholder *placeHolder;
@@ -1396,7 +1391,7 @@ void on_chat_room_conference_alert(LinphoneChatRoom *cr, const LinphoneEventLog 
 		} else {
 			NSString *key =  @"localfile";
 			//write file to path
-			if([self writeFileInICloud:data fileURL:[self getICloudFileUrl:name]]) {
+			if([view writeFileInICloud:data fileURL:[view getICloudFileUrl:name]]) {
 			dispatch_async(dispatch_get_main_queue(), ^{
 				[LinphoneManager setValueInMessageAppData:name forKey:key inMessage:message];
 				//[LinphoneManager setValueInMessageAppData:filePath forKey:@"cachedfile" inMessage:message];
